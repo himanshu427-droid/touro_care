@@ -1,12 +1,15 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Alert, Linking } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Shield, Phone, MapPin, Users, Siren, TriangleAlert as AlertTriangle, Clock, CircleCheck as CheckCircle } from 'lucide-react-native';
+import { Shield, Phone, MapPin, Users, Siren, TriangleAlert as AlertTriangle, Clock, CircleCheck as CheckCircle, FileText, Camera } from 'lucide-react-native';
+import EmergencyService from '../services/emergency';
+import LocationService from '../services/location';
+import * as Haptics from 'expo-haptics';
 
 interface EmergencyContact {
   name: string;
   number: string;
-  type: 'police' | 'medical' | 'family' | 'embassy';
+  type: 'police' | 'medical' | 'family' | 'embassy' | 'authority';
 }
 
 interface EmergencyLog {
@@ -20,16 +23,33 @@ interface EmergencyLog {
 export default function Safety() {
   const [emergencyActive, setEmergencyActive] = useState(false);
   const [panicPressed, setPanicPressed] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>([]);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
-  const emergencyContacts: EmergencyContact[] = [
-    { name: 'Local Police Station', number: '100', type: 'police' },
-    { name: 'Tourist Helpline', number: '1363', type: 'police' },
-    { name: 'Medical Emergency', number: '108', type: 'medical' },
-    { name: 'Emergency Contact - Sarah', number: '+1-555-0123', type: 'family' },
-    { name: 'US Embassy Delhi', number: '+91-11-2419-8000', type: 'embassy' },
-  ];
+  useEffect(() => {
+    loadEmergencyContacts();
+    return () => {
+      if (countdownRef.current) {
+        clearTimeout(countdownRef.current);
+      }
+    };
+  }, []);
+
+  const loadEmergencyContacts = async () => {
+    try {
+      const contacts = await EmergencyService.getTouristHelplineNumbers();
+      setEmergencyContacts(contacts.map(c => ({
+        name: c.name,
+        number: c.phone,
+        type: c.type as any,
+      })));
+    } catch (error) {
+      console.error('Error loading emergency contacts:', error);
+    }
+  };
 
   const emergencyLogs: EmergencyLog[] = [
     {
@@ -50,7 +70,53 @@ export default function Safety() {
 
   const startPanicSequence = () => {
     setPanicPressed(true);
+    setCountdown(3);
+    
+    // Haptic feedback
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    
+    // Start countdown
+    let count = 3;
+    const countdownInterval = setInterval(() => {
+      count--;
+      setCountdown(count);
+      
+      if (count <= 0) {
+        clearInterval(countdownInterval);
+        triggerEmergency();
+      }
+    }, 1000);
+
+    countdownRef.current = countdownInterval;
+
+    // Scale animation for button
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 1.1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const cancelPanicSequence = () => {
+    if (countdownRef.current) {
+      clearTimeout(countdownRef.current);
+      countdownRef.current = null;
+    }
+    setPanicPressed(false);
+    setCountdown(0);
+    scaleAnim.setValue(1);
+  };
+
+  const triggerEmergency = async () => {
     setEmergencyActive(true);
+    setPanicPressed(false);
     
     // Start pulsing animation
     Animated.loop(
@@ -68,31 +134,49 @@ export default function Safety() {
       ])
     ).start();
 
-    // Simulate emergency sequence
-    setTimeout(() => {
-      Alert.alert(
-        'Emergency Alert Sent',
-        'Your location and emergency alert have been sent to:\n\n• Local Police (100)\n• Tourist Helpline (1363)\n• Emergency Contact - Sarah\n\nHelp is on the way. Stay calm and stay visible.',
-        [
-          {
-            text: 'I\'m Safe Now',
-            onPress: cancelEmergency,
-            style: 'cancel'
-          },
-          {
-            text: 'Keep Alert Active',
-            style: 'default'
-          }
-        ]
-      );
-    }, 2000);
+    // Trigger emergency alert
+    const success = await EmergencyService.triggerPanicAlert('Emergency assistance required - Panic button activated');
+    
+    if (success) {
+      // Continue with emergency sequence
+      setTimeout(() => {
+        if (emergencyActive) {
+          Alert.alert(
+            'Emergency Response Active',
+            'Your emergency alert has been sent to:\n\n• Local Police (100)\n• Tourist Helpline (1363)\n• Your emergency contacts\n\nHelp is on the way. Stay calm and stay visible.',
+            [
+              {
+                text: 'I\'m Safe Now',
+                onPress: cancelEmergency,
+                style: 'cancel'
+              },
+              {
+                text: 'Call Police Now',
+                onPress: () => EmergencyService.makeEmergencyCall('100'),
+                style: 'default'
+              }
+            ]
+          );
+        }
+      }, 1000);
+    } else {
+      setEmergencyActive(false);
+      Alert.alert('Error', 'Failed to send emergency alert. Please try calling emergency services directly.');
+    }
   };
 
   const cancelEmergency = () => {
     setEmergencyActive(false);
     setPanicPressed(false);
+    setCountdown(0);
     pulseAnim.stopAnimation();
     pulseAnim.setValue(1);
+    scaleAnim.setValue(1);
+    
+    if (countdownRef.current) {
+      clearTimeout(countdownRef.current);
+      countdownRef.current = null;
+    }
   };
 
   const callEmergencyNumber = (contact: EmergencyContact) => {
@@ -103,20 +187,42 @@ export default function Safety() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Call',
-          onPress: () => {
-            Linking.openURL(`tel:${contact.number}`);
-          }
+          onPress: () => EmergencyService.makeEmergencyCall(contact.number)
         }
       ]
     );
   };
 
+  const reportIncident = () => {
+    Alert.alert(
+      'Report Incident',
+      'What type of incident would you like to report?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Theft/Crime', onPress: () => handleIncidentReport('theft') },
+        { text: 'Medical Emergency', onPress: () => handleIncidentReport('medical') },
+        { text: 'Safety Concern', onPress: () => handleIncidentReport('safety') },
+        { text: 'Other', onPress: () => handleIncidentReport('other') },
+      ]
+    );
+  };
+
+  const handleIncidentReport = async (type: string) => {
+    const success = await EmergencyService.reportIncident(type, `${type} incident reported via mobile app`);
+    if (success) {
+      Alert.alert('Report Submitted', 'Your incident report has been submitted to the authorities.');
+    }
+  };
+
   const getContactIcon = (type: EmergencyContact['type']) => {
     switch (type) {
-      case 'police': return <Shield size={20} color="#1D4ED8" />;
+      case 'police': 
+      case 'authority': 
+        return <Shield size={20} color="#1D4ED8" />;
       case 'medical': return <Phone size={20} color="#DC2626" />;
       case 'family': return <Users size={20} color="#16A34A" />;
       case 'embassy': return <MapPin size={20} color="#F59E0B" />;
+      default: return <Phone size={20} color="#6B7280" />;
     }
   };
 
@@ -125,6 +231,7 @@ export default function Safety() {
       case 'resolved': return <CheckCircle size={16} color="#16A34A" />;
       case 'acknowledged': return <Clock size={16} color="#F59E0B" />;
       case 'sent': return <AlertTriangle size={16} color="#DC2626" />;
+      default: return <Clock size={16} color="#6B7280" />;
     }
   };
 
@@ -146,26 +253,32 @@ export default function Safety() {
         <View style={styles.panicContainer}>
           <Animated.View style={[
             styles.panicButtonContainer,
-            { transform: [{ scale: pulseAnim }] }
+            { transform: [{ scale: emergencyActive ? pulseAnim : scaleAnim }] }
           ]}>
             <TouchableOpacity
               style={[
                 styles.panicButton,
-                emergencyActive && styles.panicButtonActive
+                emergencyActive && styles.panicButtonActive,
+                panicPressed && styles.panicButtonPressed
               ]}
               onPress={emergencyActive ? cancelEmergency : startPanicSequence}
+              onPressOut={panicPressed && !emergencyActive ? cancelPanicSequence : undefined}
               activeOpacity={0.8}
             >
               <Siren size={48} color="#FFFFFF" />
               <Text style={styles.panicButtonText}>
-                {emergencyActive ? 'CANCEL\nEMERGENCY' : 'PANIC\nBUTTON'}
+                {emergencyActive ? 'CANCEL\nEMERGENCY' : 
+                 panicPressed ? `RELEASING IN\n${countdown}` : 
+                 'PANIC\nBUTTON'}
               </Text>
             </TouchableOpacity>
           </Animated.View>
           <Text style={styles.panicDescription}>
             {emergencyActive 
               ? 'Emergency alert is active. Tap to cancel if you are safe.'
-              : 'Hold for 3 seconds to send emergency alert with your location to police and emergency contacts.'
+              : panicPressed
+              ? 'Release button to cancel emergency alert'
+              : 'Press and hold for 3 seconds to send emergency alert with your location to police and emergency contacts.'
             }
           </Text>
         </View>
@@ -190,9 +303,61 @@ export default function Safety() {
                 <Clock size={16} color="#F59E0B" />
                 <Text style={styles.statusText}>Police dispatch in progress</Text>
               </View>
+              <View style={styles.statusItem}>
+                <Clock size={16} color="#F59E0B" />
+                <Text style={styles.statusText}>Estimated arrival: 8-12 minutes</Text>
+              </View>
             </View>
           </View>
         )}
+
+        {/* Quick Emergency Actions */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Quick Emergency Actions</Text>
+          <View style={styles.emergencyActions}>
+            <TouchableOpacity 
+              style={[styles.emergencyActionButton, styles.policeButton]}
+              onPress={() => callEmergencyNumber({ name: 'Police', number: '100', type: 'police' })}
+            >
+              <Shield size={20} color="#FFFFFF" />
+              <Text style={styles.emergencyActionText}>Call Police</Text>
+              <Text style={styles.emergencyActionNumber}>100</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.emergencyActionButton, styles.medicalButton]}
+              onPress={() => callEmergencyNumber({ name: 'Medical', number: '108', type: 'medical' })}
+            >
+              <Phone size={20} color="#FFFFFF" />
+              <Text style={styles.emergencyActionText}>Medical</Text>
+              <Text style={styles.emergencyActionNumber}>108</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.emergencyActionButton, styles.helplineButton]}
+              onPress={() => callEmergencyNumber({ name: 'Tourist Helpline', number: '1363', type: 'authority' })}
+            >
+              <Users size={20} color="#FFFFFF" />
+              <Text style={styles.emergencyActionText}>Tourist Help</Text>
+              <Text style={styles.emergencyActionNumber}>1363</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Report Incident */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Report Incident</Text>
+          <View style={styles.reportActions}>
+            <TouchableOpacity style={styles.reportButton} onPress={reportIncident}>
+              <FileText size={20} color="#1D4ED8" />
+              <Text style={styles.reportButtonText}>File Incident Report</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.reportButton}>
+              <Camera size={20} color="#1D4ED8" />
+              <Text style={styles.reportButtonText}>Report with Photo</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* Emergency Contacts */}
         <View style={styles.card}>
@@ -239,6 +404,12 @@ export default function Safety() {
               <Text style={styles.tipNumber}>4</Text>
               <Text style={styles.tipText}>
                 Follow local guidelines and respect restricted area warnings.
+              </Text>
+            </View>
+            <View style={styles.tipItem}>
+              <Text style={styles.tipNumber}>5</Text>
+              <Text style={styles.tipText}>
+                Enable location tracking for real-time safety monitoring.
               </Text>
             </View>
           </View>
@@ -313,6 +484,9 @@ const styles = StyleSheet.create({
   panicButtonActive: {
     backgroundColor: '#991B1B',
   },
+  panicButtonPressed: {
+    backgroundColor: '#7F1D1D',
+  },
   panicButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -377,6 +551,56 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
     marginBottom: 16,
+  },
+  emergencyActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  emergencyActionButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 4,
+  },
+  policeButton: {
+    backgroundColor: '#1D4ED8',
+  },
+  medicalButton: {
+    backgroundColor: '#DC2626',
+  },
+  helplineButton: {
+    backgroundColor: '#16A34A',
+  },
+  emergencyActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  emergencyActionNumber: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  reportActions: {
+    gap: 12,
+  },
+  reportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  reportButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1D4ED8',
+    marginLeft: 12,
   },
   contactItem: {
     flexDirection: 'row',
