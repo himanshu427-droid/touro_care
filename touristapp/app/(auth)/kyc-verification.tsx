@@ -11,7 +11,7 @@ import {
   Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { CreditCard, CheckCircle, Upload, Camera, FileText, User, Calendar } from 'lucide-react-native';
+import { CreditCard, CircleCheck as CheckCircle, Upload, Camera, FileText, User, Calendar } from 'lucide-react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
