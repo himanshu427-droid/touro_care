@@ -20,35 +20,19 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      "expo-secure-store",
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "This app needs access to location for safety monitoring and emergency response.",
-          "locationAlwaysPermission": "This app needs access to location even when closed for continuous safety monitoring.",
-          "locationWhenInUsePermission": "This app needs access to location for safety monitoring and emergency response."
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "This app needs access to photos to upload KYC documents.",
-          "cameraPermission": "This app needs access to camera to capture KYC documents."
-        }
-      ]
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
     },
     "android": {
-      "package": "com.anonymous.boltexponativewind"
+      "package": "com.himanshu.touristapp"
     },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "459b9f77-9807-4fc0-9fdb-29f1747dc5bf"
+        "projectId": "3967e8c0-c3b9-45bf-929e-f8edd4e7149d"
       }
-    },
-    "owner": "madhujya"
+    }
   }
 }
