@@ -1,22 +1,27 @@
 'use strict';
-require('dotenv').config();
 const FabricCAServices = require('fabric-ca-client');
 const { Gateway, Wallets } = require('fabric-network');
 const fs = require('fs');
 const yaml = require('js-yaml');
 const path = require('path');
 const logger = require('../utils/logger');
+require('dotenv').config();
 
 async function _loadCCP(org) {
-  const profilePath = org === 'Org1' ? process.env.ORG1_CONNECTION_PROFILE : process.env.ORG2_CONNECTION_PROFILE;
+      const profilePath = path.resolve(__dirname,
+    org === 'org1'
+      ? process.env.ORG1_CONNECTION_PROFILE
+      : process.env.ORG2_CONNECTION_PROFILE
+  )
   const ccp = yaml.load(fs.readFileSync(profilePath, 'utf8'));
   return ccp;
 }
 
 async function _getWallet(org) {
-  const walletPath = path.resolve(process.cwd(), process.env.WALLET_PATH || './wallet', org.toLowerCase());
+  const walletPath = path.resolve(__dirname, process.env.WALLET_PATH, org);
   return await Wallets.newFileSystemWallet(walletPath);
 }
+
 
 async function _connectGateway(org, identity) {
   const ccp = await _loadCCP(org);
@@ -44,7 +49,7 @@ async function submitTransaction(org, identity, fcn, ...args) {
     logger.info(`Submitted tx ${fcn} by ${identity} on ${org}`);
     return result;
   } finally {
-
+    
     gateway.disconnect();
   }
 }
@@ -108,7 +113,7 @@ async function generateWalletId(org, roles) {
     const enrollment = await ca.enroll({ enrollmentID: walletId, enrollmentSecret: secret });
     const identity = {
       credentials: { certificate: enrollment.certificate, privateKey: enrollment.key.toBytes() },
-      mspId: org === 'Org1' ? 'Org1MSP' : 'Org2MSP',
+      mspId: org === 'org1' ? 'Org1MSP' : 'Org2MSP',
       type: 'X.509'
     };
    await wallet.put(`${walletId}`, identity); // wallet file

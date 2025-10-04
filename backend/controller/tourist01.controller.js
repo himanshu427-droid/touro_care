@@ -16,7 +16,7 @@ const User = require('../models/user.model.js');
 
 const nano = customAlphabet('0123456789ABCDEF', 8); // 8-char suffix
 const AES_KEY = process.env.AES_256_KEY;
-const DEFAULT_ORG = 'Org1';
+const DEFAULT_ORG = 'org1';
 const DEFAULT_IDENTITY = process.env.ORG_ISSUER_ID || 'admin';
 
 // ---------- AES Helpers ----------
@@ -169,6 +169,8 @@ exports.registerTourist = async (req, res, next) => {
         return next(err);
     }
 };
+
+
 
 // ---------- Location Update ----------
 exports.locationUpdate = async (req, res, next) => {

@@ -231,7 +231,6 @@ exports.review = async (req, res, next) => {
  */
 exports.getByTourist = async (req, res, next) => {
   try {
-    
     const { touristId } = req.params;
     const kycs = await KycRequest.find({ touristId }).sort({ createdAt: -1 });
     if (!kycs.length) {

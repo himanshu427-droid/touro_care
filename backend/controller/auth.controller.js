@@ -116,6 +116,7 @@ exports.me = async (req, res, next) => {
     next(err);
   }
 };
+
 exports.logout = async (req, res, next) => {
   try {
     // If you are not blacklisting tokens, just return success
@@ -128,3 +129,5 @@ exports.logout = async (req, res, next) => {
     next(err);
   }
 };
+
+

@@ -1,0 +1,14 @@
+{
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZGUxOWU5NTVhNjJjMzdkZTFhNjQ0ZiIsImVtYWlsIjoiaGltYW5zaHUyM0BleGFtcGxlLmNvbSIsInJvbGVzIjpbInRvdXJpc3QiXSwid2FsbGV0SWQiOiJ0XzE3NTkzODYwODg1NTMiLCJvcmciOiJvcmcxIiwiaWF0IjoxNzU5Mzg2MDg5LCJleHAiOjE3NTk5OTA4ODl9.NrXE3PKBSVhqKTVWogS0OA0Gu7ct_YwjizuSlqG3jUw",
+    "user": {
+        "email": "himanshu23@example.com",
+        "id": "68de19e955a62c37de1a644f",
+        "roles": [
+            "tourist"
+        ],
+        "org": "org1",
+        "walletId": "t_1759386088553"
+    },
+    "requestId": "KYC-1759391754462"
+
+}

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import { AppProvider, useAppContext } from './context/AppContext.tsx';
+import { AppProvider, useAppContext } from './context/AppContext';
 
 function AppNavigator() {
   const { user, loading } = useAppContext();

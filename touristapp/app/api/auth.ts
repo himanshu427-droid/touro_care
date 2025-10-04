@@ -5,7 +5,7 @@ const API_BASE = "http://localhost:4000";
 // LOGIN
 export const loginUser = async (email: string, password: string) => {
   try {
-    const response = await axios.post(`${API_BASE}/auth/login`, { email, password });
+    const response = await axios.post(`${API_BASE}/api/auth/login`, { email, password });
     const token = response.data?.token;
     if (token) {
       await Storage.setItem('token', token); // save securely
@@ -21,7 +21,7 @@ export const loginUser = async (email: string, password: string) => {
 // api/auth.ts
 export const registerUser = async (payload: { name: string; email: string; password: string; phone?: string }) => {
   try {
-    const response = await axios.post(`${API_BASE}/auth/register`, payload);
+    const response = await axios.post(`${API_BASE}/api/auth/register`, payload);
 
     const token = response.data?.token;
     if (token) {
@@ -41,7 +41,7 @@ export const getMe = async () => {
   const token = await Storage.getItem('token');
   if (!token) throw new Error('No token found');
 
-  const response = await axios.get(`${API_BASE}/auth/me`, {
+  const response = await axios.get(`${API_BASE}/api/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return response.data;

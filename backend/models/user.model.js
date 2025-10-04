@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema({
   passwordHash: { type: String }, 
   roles: { type: [String], default: ['tourist'] }, // tourist, issuer, police, admin, tourism
   walletId: { type: String },
-  org: { type: String, enum: ['Org1','Org2'], default: 'Org1' },
+  org: { type: String, enum: ['org1','org2'], default: 'org1' },
   phone: { type: String },
 
   // Quick frontend status fields

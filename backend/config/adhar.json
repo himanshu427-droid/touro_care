@@ -33,6 +33,15 @@
     "email": "virat@example.com",
     "address": "Guwahati, Assam"
   
+  },
+  {
+    "aadhaarNumber": "978267631111",
+    "name": "Himanshu Soni",
+    "dob": "2000-01-23",
+    "phone": "9997484725",
+    "email": "himanshu23@example.com",
+    "address": "Mathura, UP"
+  
   }
  
 ]
