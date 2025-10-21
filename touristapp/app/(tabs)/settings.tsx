@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+// touristapp/app/(tabs)/settings.tsx
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from "expo-router"
 import { 
@@ -15,6 +16,8 @@ import {
   Volume2
 } from 'lucide-react-native';
 import Storage from "../utils/storage"; 
+import { useAppContext } from '../context/AppContext';
+
 interface SettingsOption {
   id: string;
   title: string;
@@ -25,6 +28,7 @@ interface SettingsOption {
 }
 
 export default function Settings() {
+  const { user, loading, logout } = useAppContext();
   const [locationTracking, setLocationTracking] = useState(true);
   const [emergencyAlerts, setEmergencyAlerts] = useState(true);
   const [voiceAlerts, setVoiceAlerts] = useState(true);
@@ -35,7 +39,7 @@ export default function Settings() {
     'English', 'हिंदी (Hindi)', 'অসমীয়া (Assamese)', 
     'বাংলা (Bengali)', 'मैथिली (Maithili)', 'मणिपुरी (Manipuri)',
     'मिज़ो (Mizo)', 'नागा (Nagamese)', 'नेपाली (Nepali)', 
-    'ওড়িয়া (Odia)', 'संथाली (Santali)', 'ত्रिपুरी (Tripuri)'
+    'ওড়িয়া (Odia)', 'संथाली (Santali)', 'ত্রিপুরি (Tripuri)'
   ];
 
   const settingsData: SettingsOption[] = [
@@ -100,25 +104,10 @@ export default function Settings() {
     );
   };
 
-  // wrapper you made earlier
-
-const handleLogout = async () => {
-  await Storage.removeItem("token");
-  await Storage.removeItem("user");
-  router.replace("/(auth)/login"); // navigate back to login
-};
-
-
-  // const handleLogout = () => {
-  //   Alert.alert(
-  //     'Sign Out',
-  //     'Are you sure you want to sign out? Your safety monitoring will be paused.',
-  //     [
-  //       { text: 'Cancel', style: 'cancel' },
-  //       { text: 'Sign Out', style: 'destructive', onPress: () => console.log('Signed out') }
-  //     ]
-  //   );
-  // };
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/(auth)/login");
+  };
 
   const handleSwitchToggle = (id: string, value: boolean) => {
     switch (id) {
@@ -144,6 +133,71 @@ const handleLogout = async () => {
     }
   };
 
+  // Show loading while context is loading
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <ActivityIndicator size="large" color="#1D4ED8" />
+        <Text style={styles.loadingText}>Loading settings...</Text>
+      </View>
+    );
+  }
+
+  // Only redirect if we're sure there's no user and no token
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = await Storage.getItem('token');
+      if (!loading && !user && !token) {
+        router.replace('/(auth)/login');
+      }
+    };
+    checkAuth();
+  }, [loading, user]);
+
+  const renderUserInfo = () => {
+    if (!user) {
+      return (
+        <View style={styles.profileCard}>
+          <View style={styles.profileHeader}>
+            <View style={styles.profileImageContainer}>
+              <User size={32} color="#6B7280" />
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>Loading user...</Text>
+              <Text style={styles.profileId}>Please wait</Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.profileCard}>
+        <View style={styles.profileHeader}>
+          <View style={styles.profileImageContainer}>
+            <User size={32} color="#6B7280" />
+          </View>
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>{user.name}</Text>
+            <Text style={styles.profileId}>ID: {user.walletId}</Text>
+            <Text style={[
+              styles.profileStatus,
+              { color: user.kycStatus === 'verified' ? '#16A34A' : '#DC2626' }
+            ]}>
+              {user.kycStatus === 'verified' ? '✓ Verified Tourist' : 'Verification Pending'}
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity 
+          style={styles.updateButton} 
+          onPress={handleProfileUpdate}
+        >
+          <Text style={styles.updateButtonText}>Update Profile</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="dark" />
@@ -155,21 +209,7 @@ const handleLogout = async () => {
         </View>
 
         {/* User Profile Section */}
-        <View style={styles.profileCard}>
-          <View style={styles.profileHeader}>
-            <View style={styles.profileImageContainer}>
-              <User size={32} color="#6B7280" />
-            </View>
-            <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>John Anderson</Text>
-              <Text style={styles.profileId}>TID-NE-2024-001523</Text>
-              <Text style={styles.profileStatus}>✓ Verified Tourist</Text>
-            </View>
-          </View>
-          <TouchableOpacity style={styles.updateButton} onPress={handleProfileUpdate}>
-            <Text style={styles.updateButtonText}>Update Profile</Text>
-          </TouchableOpacity>
-        </View>
+        {renderUserInfo()}
 
         {/* Language Selection */}
         <View style={styles.card}>
@@ -239,23 +279,27 @@ const handleLogout = async () => {
 
         {/* App Information */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>About</Text>
+          <Text style={styles.cardTitle}>Account Information</Text>
           <View style={styles.infoGrid}>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>App Version</Text>
-              <Text style={styles.infoValue}>1.0.0</Text>
+              <Text style={styles.infoLabel}>Email</Text>
+              <Text style={styles.infoValue}>{user?.email || 'Not available'}</Text>
             </View>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Last Update</Text>
-              <Text style={styles.infoValue}>Jan 15, 2024</Text>
+              <Text style={styles.infoLabel}>Phone</Text>
+              <Text style={styles.infoValue}>{user?.phone || 'Not available'}</Text>
             </View>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Developer</Text>
-              <Text style={styles.infoValue}>Ministry of Tourism</Text>
+              <Text style={styles.infoLabel}>KYC Status</Text>
+              <Text style={[styles.infoValue, { color: user?.kycStatus === 'verified' ? '#16A34A' : '#DC2626' }]}>
+                {user?.kycStatus?.replace('_', ' ').toUpperCase() || 'NOT STARTED'}
+              </Text>
             </View>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>Support</Text>
-              <Text style={styles.infoValue}>1363 (Tourist Helpline)</Text>
+              <Text style={styles.infoLabel}>Joined</Text>
+              <Text style={styles.infoValue}>
+                {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
+              </Text>
             </View>
           </View>
         </View>
@@ -282,6 +326,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 12,
+    textAlign: 'center'
   },
   header: {
     backgroundColor: '#1D4ED8',
@@ -486,5 +541,5 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 16,
-  },
+  }
 });

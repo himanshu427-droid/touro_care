@@ -1,9 +1,12 @@
+// touristapp/app/(tabs)/index.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StyleSheet, RefreshControl, Linking } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { MapPin, TriangleAlert as AlertTriangle, Shield, Clock, Navigation, Activity, Users, Phone } from 'lucide-react-native';
 import * as Location from 'expo-location';
 import { useAppContext } from '../context/AppContext';
+import { useRouter, Link } from 'expo-router';
+import { getDashboardStats, getAlerts, verifyTourist, updateLocation, triggerEmergency, reportIssue } from '../api/tourist';
 
 interface LocationData {
   latitude: number;
@@ -28,36 +31,22 @@ interface TripStats {
 }
 
 export default function Dashboard() {
+  const router = useRouter();
   const { user } = useAppContext();
   const [location, setLocation] = useState<LocationData | null>(null);
   const [safetyScore, setSafetyScore] = useState(85);
   const [isTracking, setIsTracking] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [locationHistory, setLocationHistory] = useState<LocationData[]>([]);
-  
-  const [alerts, setAlerts] = useState<SafetyAlert[]>([
-    {
-      id: '1',
-      type: 'info',
-      message: 'Welcome to Shillong! You are in a safe tourist zone.',
-      time: '10:30 AM',
-      location: 'Police Bazar, Shillong'
-    },
-    {
-      id: '2',
-      type: 'warning', 
-      message: 'Approaching restricted area near Umiam Lake after 6 PM.',
-      time: '10:25 AM',
-      location: 'Umiam Lake Road'
-    }
-  ]);
-
-  const [tripStats] = useState<TripStats>({
+  const [alerts, setAlerts] = useState<SafetyAlert[]>([]);
+  const [tripStats, setTripStats] = useState<TripStats>({
     daysRemaining: 5,
     placesVisited: 3,
     safetyChecks: 12,
     emergencyContacts: 2
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     getLocation();
@@ -69,6 +58,112 @@ export default function Dashboard() {
 
     return () => clearInterval(interval);
   }, [isTracking]);
+
+  // Load initial data
+  useEffect(() => {
+    loadDashboardData();
+  }, [user]);
+
+  const loadDashboardData = async () => {
+    console.log('Loading dashboard data for user:', user);
+    
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Always start with fallback data
+      const fallbackStats = {
+        daysRemaining: 5,
+        placesVisited: 3,
+        safetyChecks: 12,
+        emergencyContacts: 2
+      };
+      
+      setTripStats(fallbackStats);
+      setSafetyScore(75);
+      setAlerts([]);
+
+      // If no user or walletId, use fallback data only
+      if (!user?.walletId) {
+        console.log('No walletId found, using fallback data only');
+        setLoading(false);
+        return;
+      }
+
+      console.log('Fetching data for walletId:', user.walletId);
+
+      // Try to fetch data with shorter timeout and better error handling
+      const fetchWithTimeout = async (apiCall: () => Promise<any>, timeoutMs: number = 5000) => {
+        return Promise.race([
+          apiCall(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Request timeout')), timeoutMs)
+          )
+        ]);
+      };
+
+      // Fetch data with individual timeouts
+      const [statsRes, alertsRes, verificationRes] = await Promise.allSettled([
+        fetchWithTimeout(() => getDashboardStats(), 5000).catch(err => {
+          console.error('Stats fetch failed:', err);
+          return { success: false, data: fallbackStats };
+        }),
+        fetchWithTimeout(() => getAlerts(), 5000).catch(err => {
+          console.error('Alerts fetch failed:', err);
+          return { success: false, data: [] };
+        }),
+        fetchWithTimeout(() => verifyTourist(user.walletId), 5000).catch(err => {
+          console.error('Verification failed:', err);
+          return { success: false, data: { additionalInfo: { securityScore: 75 } } };
+        })
+      ]);
+
+      console.log('API responses:', { statsRes, alertsRes, verificationRes });
+
+      // Update stats if successful
+      if (statsRes.status === 'fulfilled' && statsRes.value?.success && statsRes.value.data) {
+        setTripStats(statsRes.value.data);
+        console.log('Updated stats from API');
+      } else {
+        console.log('Using fallback stats');
+      }
+
+      // Update alerts if successful
+      if (alertsRes.status === 'fulfilled' && alertsRes.value?.success && alertsRes.value.data) {
+        setAlerts(alertsRes.value.data.map(formatAlert));
+        console.log('Updated alerts from API');
+      } else {
+        console.log('Using fallback alerts');
+      }
+
+      // Update safety score if successful
+      if (verificationRes.status === 'fulfilled' && 
+          verificationRes.value?.success && 
+          verificationRes.value.data?.additionalInfo?.securityScore) {
+        setSafetyScore(verificationRes.value.data.additionalInfo.securityScore);
+        console.log('Updated safety score from API');
+      } else {
+        console.log('Using fallback safety score');
+      }
+
+    } catch (error: any) {
+      console.error('Error loading dashboard data:', error);
+      setError(error.message);
+      
+      // Keep fallback data even on error
+      console.log('Using fallback data due to error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatAlert = (alert: any) => ({
+    id: alert._id || alert.id || Math.random().toString(),
+    type: alert.severity || alert.type || 'info',
+    message: alert.message || 'No message',
+    time: new Date(alert.createdAt || Date.now()).toLocaleTimeString(),
+    location: alert.location?.address || 'Unknown',
+  });
 
   const getLocation = async () => {
     try {
@@ -85,21 +180,24 @@ export default function Dashboard() {
       const newLocation: LocationData = {
         latitude: locationResult.coords.latitude,
         longitude: locationResult.coords.longitude,
-        address: 'Shillong, Meghalaya, India',
         timestamp: new Date()
       };
       
+      // Update location on server (don't block on this)
+      updateLocation({
+        lat: newLocation.latitude,
+        lon: newLocation.longitude,
+        ts: newLocation.timestamp.toISOString(),
+        deviceId: 'Device07'
+      }).catch(err => console.error('Location update failed:', err));
+
       setLocation(newLocation);
       
       // Add to location history
-      setLocationHistory(prev => [newLocation, ...prev.slice(0, 9)]); // Keep last 10 locations
-      
-      // Simulate safety score calculation based on location
-      const newScore = Math.floor(Math.random() * 20) + 75; // Random score between 75-95
-      setSafetyScore(newScore);
+      setLocationHistory(prev => [newLocation, ...prev.slice(0, 9)]);
       
     } catch (error) {
-      console.log('Error getting location:', error);
+      console.error('Error getting location:', error);
     }
   };
 
@@ -115,11 +213,8 @@ export default function Dashboard() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await getLocation();
-    // Simulate fetching new alerts
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    await loadDashboardData();
+    setRefreshing(false);
   };
 
   const getSafetyColor = (score: number) => {
@@ -150,6 +245,69 @@ export default function Dashboard() {
     });
   };
 
+  // Handle emergency button
+  const handleEmergency = async () => {
+    let currentPosition = location;
+    if (!currentPosition) {
+      Alert.alert("Locating...", "Getting your current position for the SOS call.");
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location access is required to send an SOS alert.');
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({});
+      currentPosition = { latitude: pos.coords.latitude, longitude: pos.coords.longitude, timestamp: new Date() };
+      setLocation(currentPosition);
+    }
+
+    Alert.alert(
+      'Confirm SOS',
+      'Are you sure you want to send an emergency alert to authorities and your contacts?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'YES, I NEED HELP',
+          onPress: async () => {
+            try {
+              await triggerEmergency({
+                location: { lat: currentPosition!.latitude, lon: currentPosition!.longitude },
+                message: 'SOS from Touro-Care App!'
+            });
+              Alert.alert('SOS Sent!', 'Help is on the way. Your emergency contacts and local authorities have been notified.');
+            } catch (e) {
+              Alert.alert('SOS Failed', 'Could not send the alert. Please try again or call for help directly.');
+            }
+          },
+          style: 'destructive'
+        }
+      ]
+    );
+  };
+
+  // Handle report issue
+  const handleReportIssue = () => {
+    router.push('/(auth)/report-issue' as any);
+  };
+
+  // Handle call helpline
+  const handleCallHelpline = () => {
+    Linking.openURL('tel:+911234567890');
+  };
+
+  // Handle trip update
+  const handleUpdateTrip = () => {
+    router.push('/(auth)/trip-details');
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#1D4ED8" />
+        <Text style={styles.loadingText}>Loading dashboard...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
@@ -169,6 +327,15 @@ export default function Dashboard() {
             <Shield size={24} color="#FFFFFF" />
           </View>
         </View>
+
+        {/* Error Banner */}
+        {error && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>
+              ⚠️ Using offline data. Some features may be limited.
+            </Text>
+          </View>
+        )}
 
         {/* Trip Stats */}
         <View style={styles.statsContainer}>
@@ -232,7 +399,7 @@ export default function Dashboard() {
           </View>
           {location ? (
             <View>
-              <Text style={styles.locationText}>{location.address}</Text>
+              <Text style={styles.locationText}>{location.address || 'Location acquired'}</Text>
               <Text style={styles.coordinates}>
                 {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}
               </Text>
@@ -272,7 +439,7 @@ export default function Dashboard() {
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>
-          {alerts.map((alert) => (
+          {alerts.length > 0 ? alerts.map((alert) => (
             <View key={alert.id} style={styles.alertItem}>
               <View style={[styles.alertDot, { backgroundColor: getAlertColor(alert.type) }]} />
               <View style={styles.alertContent}>
@@ -290,7 +457,9 @@ export default function Dashboard() {
                 </View>
               </View>
             </View>
-          ))}
+          )) : (
+            <Text style={styles.noAlertsText}>No recent alerts</Text>
+          )}
         </View>
 
         {/* Location History */}
@@ -304,7 +473,7 @@ export default function Dashboard() {
               <View key={index} style={styles.historyItem}>
                 <View style={styles.historyDot} />
                 <View style={styles.historyContent}>
-                  <Text style={styles.historyLocation}>{loc.address}</Text>
+                  <Text style={styles.historyLocation}>{loc.address || 'Location acquired'}</Text>
                   <Text style={styles.historyTime}>
                     {formatTime(loc.timestamp)}
                   </Text>
@@ -318,21 +487,33 @@ export default function Dashboard() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Quick Actions</Text>
           <View style={styles.quickActions}>
-            <TouchableOpacity style={[styles.actionButton, styles.emergencyButton]}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.emergencyButton]}
+              onPress={handleEmergency}
+            >
               <Shield size={20} color="#FFFFFF" />
               <Text style={styles.emergencyButtonText}>Emergency Help</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, styles.reportButton]}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.reportButton]}
+              onPress={handleReportIssue}
+            >
               <AlertTriangle size={20} color="#1D4ED8" />
               <Text style={styles.reportButtonText}>Report Issue</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.quickActions}>
-            <TouchableOpacity style={[styles.actionButton, styles.contactButton]}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.contactButton]}
+              onPress={handleCallHelpline}
+            >
               <Phone size={20} color="#10B981" />
               <Text style={styles.contactButtonText}>Call Helpline</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.actionButton, styles.updateButton]}>
+            <TouchableOpacity 
+              style={[styles.actionButton, styles.updateButton]}
+              onPress={handleUpdateTrip}
+            >
               <Users size={20} color="#F59E0B" />
               <Text style={styles.updateButtonText}>Update Trip</Text>
             </TouchableOpacity>
@@ -344,6 +525,41 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
+  centered: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    padding: 20
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 12,
+    textAlign: 'center'
+  },
+  errorBanner: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B'
+  },
+  errorBannerText: {
+    fontSize: 14,
+    color: '#92400E',
+    fontWeight: '500'
+  },
+  noAlertsText: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 20
+  },
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
@@ -505,12 +721,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 20,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontStyle: 'italic',
-    marginLeft: 8,
   },
   trackingButton: {
     flexDirection: 'row',

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getMe } from '../api/auth';
 import Storage from '../utils/storage';
 
+// --- (No changes to your User interface) ---
 interface User {
   _id: string;
   name: string;
@@ -15,18 +16,19 @@ interface User {
   createdAt?: string;
 }
 
+// --- (Added logout to the context type) ---
 interface AppContextType {
   user: User | null;
-  setUser: (user: User | null) => void;
   loading: boolean;
   refreshUser: () => Promise<void>;
+  logout: () => Promise<void>; // 2. NEW: Added logout function
 }
 
 const AppContext = createContext<AppContextType>({
   user: null,
-  setUser: () => {},
   loading: true,
   refreshUser: async () => {},
+  logout: async () => {},
 });
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -35,36 +37,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const refreshUser = async () => {
     try {
-      setLoading(true);
-      const res = await getMe(); // { success: true, data: {...user} }
-      const currentUser = res?.data;
-      if (currentUser) {
-        setUser(currentUser);
-        await Storage.setItem('user', JSON.stringify(currentUser));
-      } else {
+      const token = await Storage.getItem('token');
+      if (!token) {
         setUser(null);
-        await Storage.removeItem('user');
+        return;
+      }
+
+      // Get fresh user data from server
+      const response = await getMe();
+      if (response.success) {
+        const userData = response.data;
+        setUser(userData);
+        await Storage.setItem('user', JSON.stringify(userData));
+      } else {
+        throw new Error('Failed to fetch user data');
       }
     } catch (err) {
-      console.error('Failed to fetch user:', err);
+      console.error('Failed to refresh user:', err);
       setUser(null);
+      await Storage.removeItem('token');
       await Storage.removeItem('user');
-    } finally {
-      setLoading(false);
     }
   };
 
+  // Load user data on mount
   useEffect(() => {
-    const loadUser = async () => {
-      const stored = await Storage.getItem('user');
-      if (stored) setUser(JSON.parse(stored));
-      await refreshUser();
+    const loadInitialData = async () => {
+      try {
+        const cachedUser = await Storage.getItem('user');
+        if (cachedUser) {
+          setUser(JSON.parse(cachedUser));
+        }
+        await refreshUser(); // Always refresh to get latest data
+      } catch (err) {
+        console.error('Error loading initial data:', err);
+      } finally {
+        setLoading(false);
+      }
     };
-    loadUser();
+
+    loadInitialData();
   }, []);
 
+  // 2. NEW: A dedicated logout function
+  const logout = async () => {
+    setUser(null);
+    await Storage.removeItem('user');
+    await Storage.removeItem('token');
+  };
+
   return (
-    <AppContext.Provider value={{ user, setUser, loading, refreshUser }}>
+    <AppContext.Provider value={{ user, loading, refreshUser, logout }}>
       {children}
     </AppContext.Provider>
   );

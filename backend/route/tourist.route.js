@@ -38,62 +38,26 @@
 const router = require('express').Router();
 const touristController = require('../controller/tourist01.controller.js');
 const { auth, requireRole } = require('../middleware/auth.middleware');
+const parser = require('../middleware/upload.middleware.js');
+const SosAlert = require('../models/alert.model.js');
 
-
-
-const parser = require('../middleware/upload.middleware.js'); // multer cloudinary
-
-
-// Tourist submits KYC with documents
-// Use 'parser.array("documents")' to handle multiple file uploads
-
-// ================= TOURIST ROUTES =================
-
-// Register tourist after KYC approval
+// Tourist Routes
 router.post('/register', auth, requireRole(['tourist']), touristController.registerTourist);
-
-// Location tracking and updates
 router.post('/location', auth, requireRole(['tourist']), touristController.locationUpdate);
-
-// SOS emergency alert
 router.post('/sos', auth, requireRole(['tourist']), touristController.sosAlert);
-
-// Submit feedback
 router.post('/feedback', auth, requireRole(['tourist']), touristController.submitFeedback);
+router.post('/efir', auth, requireRole(['tourist']), parser.single('evidence'), touristController.fileEFIR);
 
-// File e-FIR (electronic First Information Report)
-// router.post('/efir', auth, requireRole(['tourist']), touristController.fileEFIR);
-
-router.post(
-  '/efir',
-  auth,
-  requireRole(['tourist']),
-  parser.single('evidence'), // optional file
-  touristController.fileEFIR
-);
-
-// Verify tourist status (for authorities and self)
+// Verification and Details Routes
 router.get('/verify/:touristId', auth, touristController.verifyTourist);
+router.get('/details/:touristId', auth, requireRole(['tourist']), touristController.getTouristDetails);
 
-// ================= AUTHORITY ROUTES =================
+// Add the missing stats and alerts routes with proper handlers
+router.get('/stats', auth, requireRole(['tourist']), touristController.getTouristStats);
+router.get('/alerts/list', auth, requireRole(['tourist']), touristController.getAlerts);
 
-// Update tourist status (activate/deactivate/suspend/revoke)
+// Authority Routes
 router.patch('/status', auth, requireRole(['police', 'admin']), touristController.updateTouristStatus);
-
-// Respond to SOS alerts
 router.post('/sos/respond', auth, requireRole(['police', 'admin']), touristController.respondToSOS);
-
-// Get comprehensive tourist details
-router.get('/details/:touristId', auth, requireRole(['police', 'admin']), touristController.getTouristDetails);
-
-
-// // ================= ML/ANALYTICS ROUTES =================
-
-// // Anomaly prediction
-// router.post('/predict_anomaly', auth, touristController.predictAnomaly);
-
-// // Geofence operations
-// router.post('/geofence', auth, touristController.geofence);
-// router.post('/add_geofence', auth, requireRole(['admin']), touristController.addGeofence);
 
 module.exports = router;

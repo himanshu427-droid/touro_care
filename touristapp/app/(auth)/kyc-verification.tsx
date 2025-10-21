@@ -17,6 +17,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAppContext } from '../context/AppContext';
 import Storage from '../utils/storage';
+import { submitKyc, verifyOtpKyc } from '../api/kyc';
+import { store } from 'expo-router/build/global-state/router-store';
 
 interface Document {
   uri: string;
@@ -50,23 +52,24 @@ export default function KYCVerification() {
 
     setLoading(true);
     try {
-      // Simulate KYC submission
-      const mockResponse = {
-        success: true,
-        data: {
-          requestId: `KYC-${Date.now()}`,
-          message: 'KYC submitted successfully. OTP sent to your registered mobile number.',
-        }
-      };
-
-      if (mockResponse.success && mockResponse.data?.requestId) {
-        setRequestId(mockResponse.data.requestId);
+        const token = await Storage.getItem('token');
+    if(!token){
+      console.error("No authentication token found");
+      return;
+    }
+      const response = await submitKyc(formData, token )
+      // Alert.alert("Sucessfully submitted kyc")
+      console.log(response)
+      if(response.success && response.requestId){
+        setRequestId(response.requestId);
         setCurrentStep(2);
         startOtpTimer();
-        Alert.alert('Success', mockResponse.data.message);
-      } else {
+        Alert.alert(response.message)
+      }
+      else{
         Alert.alert('Error', 'KYC submission failed');
       }
+
     } catch (err: any) {
       console.error(err);
       Alert.alert('Error', err.message || 'Failed to submit KYC');
@@ -81,29 +84,47 @@ export default function KYCVerification() {
     setLoading(true);
     try {
       // Simulate OTP verification
-      const mockResponse = {
-        success: true,
-        data: {
-          message: 'KYC verified successfully! You can now proceed to trip registration.',
+      // const mockResponse = {
+      //   success: true,
+      //   data: {
+      //     message: 'KYC verified successfully! You can now proceed to trip registration.',
+      //   }
+        const token = await Storage.getItem('token');
+        if(!token){
+          console.error("No authentication token found");
+          return;
         }
-      };
-
-      if (mockResponse.success) {
+      const otp = formData.otp;
+      const response = await verifyOtpKyc( {otp, requestId}, token);
+      if(response.success){
         setCurrentStep(3);
-        // Update user context to reflect KYC verification
-        await refreshUser();
-        Alert.alert('Success', mockResponse.data?.message || 'KYC Verified');
-      } else {
+         Alert.alert('Success', response.message || 'KYC Verified');
+      
+      }
+      else {
         Alert.alert('Error', 'OTP verification failed');
         setCurrentStep(1);
       }
-    } catch (err: any) {
+
+      }
+
+      // if (mockResponse.success) {
+      //   setCurrentStep(3);
+      //   // Update user context to reflect KYC verification
+      //   await refreshUser();
+      //   Alert.alert('Success', mockResponse.data?.message || 'KYC Verified');
+      // } else {
+      //   Alert.alert('Error', 'OTP verification failed');
+      //   setCurrentStep(1);
+      // }
+    catch (err: any) {
       console.error(err);
       Alert.alert('Error', err.message || 'Failed to verify OTP');
     } finally {
       setLoading(false);
     }
-  };
+  }
+
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({

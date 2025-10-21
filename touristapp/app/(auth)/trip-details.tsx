@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView,
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { MapPin, Calendar, Users, Phone, Plus, Trash2, User } from 'lucide-react-native';
+import { submitTripDetails } from '../api/trip-details';
+import Storage from '../utils/storage';
 
 interface EmergencyContact {
   id: string;
@@ -21,11 +23,11 @@ interface FamilyMember {
 
 export default function TripDetails() {
   const [tripData, setTripData] = useState({
-    destination: '',
+    destination: 'Jaipur',
     checkInDate: '',
     checkOutDate: '',
-    accommodation: '',
-    purpose: '',
+    accommodation: 'Sector 7',
+    purpose: 'Tour',
     groupSize: '1',
   });
 
@@ -108,14 +110,22 @@ export default function TripDetails() {
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    // if (!validateForm()) return;
 
     setLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      Alert.alert(
+    try {
+      const token = await Storage.getItem('token');
+      if(!token){
+      console.log("No authentication token found");
+      }
+      const payload = {
+        tripDets: tripData,
+        emergencyContacts
+      }
+      const response  = await submitTripDetails(payload, token)
+
+      if(response.success){
+        Alert.alert(
         'Digital ID Generated!',
         'Your Digital Tourist ID has been successfully created and is now ready for use. Welcome to the Smart Tourist Safety Network!',
         [
@@ -125,7 +135,16 @@ export default function TripDetails() {
           }
         ]
       );
-    }, 2000);
+      
+    } 
+    } catch (err:any) {
+       console.error(err);
+       Alert.alert('Error', err.message || 'Failed to submit trip details');
+    }
+    finally{
+      setLoading(false)
+    }
+
   };
 
   return (

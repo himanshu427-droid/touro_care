@@ -7,12 +7,13 @@ const { generateWalletId } = require('../services/fabricService.js');
 
 // Utility to determine default org based on roles
 function defaultOrg(roles) {
-  if (roles.includes('police') || roles.includes('admin2')) return 'Org2';
-  return 'Org1';
+  if (roles.includes('police') || roles.includes('admin2')) return 'org2';
+  return 'org1';
 }
 
 exports.register = async (req, res, next) => {
   try {
+    console.log(req.body)
     const { name, email, password, roles = ['tourist'], org, phone, walletId: preWalletId } = req.body;
 
     if (!email || !password) 

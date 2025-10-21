@@ -2,8 +2,9 @@
 import axios from "axios";
 
 const API_BASE =
-  process.env.EXPO_PUBLIC_API_URL?.concat("/api/kyc") ||
-  "https://3f45c820ded9.ngrok-free.app/api/kyc";
+  // process.env.EXPO_PUBLIC_API_URL?.concat("/api/kyc") ||
+  // "https://3f45c820ded9.ngrok-free.app/api/kyc";
+  "http://localhost:4000/api/kyc"
 
 // Create instance
 const kycApi = axios.create({
@@ -16,7 +17,7 @@ const authHeaders = (token?: string) => ({
 });
 
 // ------------------ Submit KYC ------------------
-export const submitKyc = async (data: any, token: string) => {
+export const submitKyc = async (data: any, token: any) => {
   const formData = new FormData();
 
   // Required fields

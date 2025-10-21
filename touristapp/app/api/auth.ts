@@ -6,9 +6,10 @@ const API_BASE = "http://localhost:4000";
 export const loginUser = async (email: string, password: string) => {
   try {
     const response = await axios.post(`${API_BASE}/api/auth/login`, { email, password });
-    const token = response.data?.token;
+    const { token, user } = response.data;
     if (token) {
-      await Storage.setItem('token', token); // save securely
+      await Storage.setItem('token', token);
+      await Storage.setItem('user', JSON.stringify(user)); // Also store user data
     }
     return response.data;
   } catch (err) {
@@ -22,7 +23,7 @@ export const loginUser = async (email: string, password: string) => {
 export const registerUser = async (payload: { name: string; email: string; password: string; phone?: string }) => {
   try {
     const response = await axios.post(`${API_BASE}/api/auth/register`, payload);
-
+    console.log(response.data)
     const token = response.data?.token;
     if (token) {
       // Store the token securely

@@ -1,8 +1,9 @@
 'use strict';
 const axios = require('axios');
+const logger = require('../utils/logger'); // Assuming you have a logger
 
 const ML_URL = process.env.ML_SERVICE_URL || 'http://127.0.0.1:8080';
-const TIMEOUT = parseInt(process.env.ML_TIMEOUT_MS || '10000', 10);
+const TIMEOUT = parseInt(process.env.ML_TIMEOUT_MS || '5000', 10);
 
 async function analyzeSequence(touristId, seq) {
   try {
@@ -22,24 +23,26 @@ async function analyzeSequence(touristId, seq) {
     if (response.success && response.anomaly_score !== undefined) {
       return {
         success: true,
-        anomaly_score: response.anomaly_score,
-        isAnomaly: response.isAnomaly,
-        score: response.anomaly_score,
-        sequence_length: response.sequence_length
+        isAnomaly: resp.data.isAnomaly,
+        score: resp.data.anomaly_score
       };
     } 
   } catch (err) {
-    // logger.error("ML service error:", err.message);
-    // res.status(500)
-    // console.log(err)
+    logger.error(`ML service (analyzeSequence) error: ${err.message}`);
+    // Return a safe default instead of crashing
+    return { success: false, isAnomaly: false, score: 0 };
   }
 }
 
-
 async function checkGeofence(data) {
-    const resp = await axios.post(`${ML_URL}/ingest/ping`, data)
-    return resp.data.actions;
+    try {
+        const resp = await axios.post(`${ML_URL}/ingest/ping`, data, { timeout: TIMEOUT });
+        return resp.data.actions || [];
+    } catch(err) {
+        logger.error(`ML service (checkGeofence) error: ${err.message}`);
+        // Return a safe default
+        return [];
+    }
 }
-
 
 module.exports = { analyzeSequence, checkGeofence };

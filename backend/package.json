@@ -28,6 +28,7 @@
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
+    "nano": "^11.0.3",
     "nanoid": "^5.1.5",
     "uuid": "^9.0.0",
     "winston": "^3.11.0",

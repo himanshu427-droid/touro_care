@@ -38,10 +38,30 @@
     "aadhaarNumber": "978267631111",
     "name": "Himanshu Soni",
     "dob": "2000-01-23",
-    "phone": "9997484725",
-    "email": "himanshu23@example.com",
+    "phone": "8958811535",
+    "email": "himanshusoni23@example.com",
+    "address": "Mathura, UP"
+  
+  },
+  {
+    "aadhaarNumber": "978267631112",
+    "name": "Himanshu Soni",
+    "dob": "2000-01-23",
+    "phone": "8958811535",
+    "email": "himansh0@gmail.com",
+    "address": "Mathura, UP"
+  
+  },
+  {
+    "aadhaarNumber": "978267651266",
+    "name": "Tareef Singh",
+    "dob": "2000-04-23",
+    "phone": "8958811535",
+    "email": "tareefsingh23@gmail.com",
     "address": "Mathura, UP"
   
   }
+
+
  
 ]

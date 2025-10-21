@@ -68,6 +68,7 @@ export default function Signup() {
       };
 
        const res=await registerUser(payload);
+       console.log(res)
       if (res?.token) {
         await Storage.setItem('token', res.token);
         await Storage.setItem('user', JSON.stringify(res.user));
